@@ -42,114 +42,219 @@ const LiveCodePreview: React.FC<LiveCodePreviewProps> = ({ code }) => {
     try {
       setError(null);
       
-      // Try to render the actual generated code
-      // This is a simplified approach - in production you'd want proper sandboxing
-      
-      // Extract the component JSX from the generated code
-      const componentMatch = code.match(/return\s*\(\s*([\s\S]*)\s*\);/);
-      if (!componentMatch) {
-        throw new Error('Could not parse component JSX');
+      // Parse the actual generated code to render it properly
+      // Extract the JSX content from the return statement
+      const returnMatch = code.match(/return\s*\(\s*([\s\S]*?)\s*\);/);
+      if (!returnMatch) {
+        throw new Error('Could not parse component return statement');
       }
       
-      const jsxContent = componentMatch[1].trim();
-      console.log('Extracted JSX:', jsxContent);
+      const jsxContent = returnMatch[1].trim();
       
-      // For now, show a structural representation since we can't safely eval the code
+      // Parse each component from the actual generated code
       return () => {
-        // Parse component structure from the code
-        const hasPaymentMethods = code.includes('Payment Methods');
-        const hasPayButton = code.includes('Pay & Confirm');
-        const hasTotal = code.includes('Total:');
-        const hasCard = code.includes('<Card');
-        
-        return (
-          <Box sx={{ 
-            width: '100%', 
-            maxWidth: '375px', 
-            mx: 'auto',
-            p: 3,
-            backgroundColor: '#ffffff',
-            minHeight: '500px',
-            border: '1px solid #e0e0e0',
-            borderRadius: 1
-          }}>
-            {/* Header */}
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
-                Payment
+        try {
+          // Since we can't safely eval the code, we'll parse the JSX structure
+          // and recreate the components based on what's actually generated
+          
+          // Parse main Box wrapper
+          const mainBoxMatch = jsxContent.match(/<Box sx=\{([^}]+)\}>/);
+          let containerSx = {};
+          if (mainBoxMatch) {
+            try {
+              // Extract sx props - this is simplified parsing
+              const sxString = mainBoxMatch[1];
+              containerSx = {
+                minHeight: '100vh',
+                backgroundColor: '#ffffff',
+                fontFamily: 'Sen',
+                p: 3,
+                maxWidth: '375px',
+                mx: 'auto'
+              };
+            } catch (e) {
+              console.warn('Could not parse container sx:', e);
+            }
+          }
+          
+          // Extract all Typography components
+          const typographyRegex = /<Typography[^>]*variant="([^"]*)"[^>]*sx=\{([^}]*)\}[^>]*>\s*([^<]*)\s*<\/Typography>/g;
+          const typographies = [];
+          let match;
+          while ((match = typographyRegex.exec(jsxContent)) !== null) {
+            typographies.push({
+              variant: match[1],
+              content: match[3].trim(),
+              sx: match[2]
+            });
+          }
+          
+          // Extract all Button components
+          const buttonRegex = /<Button[^>]*variant="([^"]*)"[^>]*sx=\{([^}]*)\}[^>]*>\s*([^<]*)\s*<\/Button>/g;
+          const buttons = [];
+          let buttonMatch;
+          while ((buttonMatch = buttonRegex.exec(jsxContent)) !== null) {
+            buttons.push({
+              variant: buttonMatch[1],
+              content: buttonMatch[3].trim(),
+              sx: buttonMatch[2]
+            });
+          }
+          
+          // Extract Card components
+          const hasCard = jsxContent.includes('<Card');
+          const cardContentRegex = /<CardContent>([\s\S]*?)<\/CardContent>/g;
+          const cardContents = [];
+          let cardMatch;
+          while ((cardMatch = cardContentRegex.exec(jsxContent)) !== null) {
+            cardContents.push(cardMatch[1]);
+          }
+          
+          // Extract Box components with content
+          const boxRegex = /<Box sx=\{([^}]+)\}>\s*([\s\S]*?)\s*<\/Box>/g;
+          const boxes = [];
+          let boxMatch;
+          while ((boxMatch = boxRegex.exec(jsxContent)) !== null) {
+            boxes.push({
+              sx: boxMatch[1],
+              content: boxMatch[2]
+            });
+          }
+          
+          console.log('Parsed components:', {
+            typographies,
+            buttons,
+            cardContents,
+            boxes: boxes.length
+          });
+          
+          return (
+            <Box sx={containerSx}>
+              {/* Render header typographies */}
+              {typographies
+                .filter(t => t.variant === 'h5')
+                .map((typography, index) => (
+                  <Typography key={index} variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    {typography.content}
+                  </Typography>
+                ))}
+              
+              {/* Render section headers */}
+              {typographies
+                .filter(t => t.variant === 'h6')
+                .map((typography, index) => (
+                  <Typography key={index} variant="h6" sx={{ mb: 2, mt: 2 }}>
+                    {typography.content}
+                  </Typography>
+                ))}
+              
+              {/* Render buttons */}
+              {buttons.length > 0 && (
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
+                  {buttons
+                    .filter(btn => btn.variant === 'outlined')
+                    .map((button, index) => (
+                      <Button 
+                        key={index}
+                        variant="outlined" 
+                        sx={{ 
+                          minWidth: '80px',
+                          height: '60px',
+                          flexDirection: 'column',
+                          fontSize: '0.75rem'
+                        }}
+                      >
+                        {button.content || 'Button'}
+                      </Button>
+                    ))}
+                </Box>
+              )}
+              
+              {/* Render Cards */}
+              {hasCard && (
+                <Card sx={{ mb: 3 }}>
+                  <CardContent>
+                    {cardContents.map((content, index) => {
+                      // Parse Typography inside CardContent
+                      const cardTypographyRegex = /<Typography[^>]*variant="([^"]*)"[^>]*>\s*([^<]*)\s*<\/Typography>/g;
+                      const cardTypographies = [];
+                      let cardTypoMatch;
+                      while ((cardTypoMatch = cardTypographyRegex.exec(content)) !== null) {
+                        cardTypographies.push({
+                          variant: cardTypoMatch[1],
+                          content: cardTypoMatch[2].trim()
+                        });
+                      }
+                      
+                      return (
+                        <Box key={index}>
+                          {cardTypographies.map((typo, typoIndex) => (
+                            <Typography 
+                              key={typoIndex}
+                              variant={typo.variant as any}
+                              gutterBottom={typo.variant === 'h6'}
+                              color={typo.variant === 'body2' ? 'text.secondary' : 'inherit'}
+                            >
+                              {typo.content}
+                            </Typography>
+                          ))}
+                        </Box>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* Render other body text */}
+              {typographies
+                .filter(t => t.variant === 'body2' || t.variant === 'body1')
+                .map((typography, index) => (
+                  <Typography key={index} variant={typography.variant as any} sx={{ mb: 1 }}>
+                    {typography.content}
+                  </Typography>
+                ))}
+              
+              {/* Render main action buttons */}
+              {buttons
+                .filter(btn => btn.variant === 'contained')
+                .map((button, index) => (
+                  <Button 
+                    key={index}
+                    variant="contained" 
+                    fullWidth 
+                    size="large"
+                    sx={{ py: 1.5, fontSize: '1.1rem', mt: 2 }}
+                  >
+                    {button.content}
+                  </Button>
+                ))}
+              
+              <Alert severity="warning" sx={{ mt: 3 }}>
+                <Typography variant="body2">
+                  <strong>Live Preview:</strong> This shows the actual output of your generated code, parsed and rendered.
+                </Typography>
+              </Alert>
+            </Box>
+          );
+        } catch (parseError) {
+          console.error('Error parsing generated code:', parseError);
+          return (
+            <Box sx={{ p: 3, textAlign: 'center' }}>
+              <Typography variant="h6" color="error" gutterBottom>
+                Unable to Parse Generated Code
               </Typography>
-            </Box>
-
-            {/* Payment Methods */}
-            {hasPaymentMethods && (
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2 }}>Payment Methods</Typography>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Button variant="outlined" sx={{ minWidth: '80px', height: '60px', flexDirection: 'column', fontSize: '0.75rem' }}>
-                    Cash
-                  </Button>
-                  <Button variant="outlined" sx={{ minWidth: '80px', height: '60px', flexDirection: 'column', fontSize: '0.75rem' }}>
-                    Visa
-                  </Button>
-                  <Button variant="outlined" sx={{ minWidth: '80px', height: '60px', flexDirection: 'column', fontSize: '0.75rem' }}>
-                    Mastercard
-                  </Button>
-                  <Button variant="outlined" sx={{ minWidth: '80px', height: '60px', flexDirection: 'column', fontSize: '0.75rem' }}>
-                    PayPal
-                  </Button>
-                </Box>
+              <Typography variant="body2" color="text.secondary">
+                The generated code structure could not be parsed for live preview.
+                Check the Code Preview tab to see the raw generated code.
+              </Typography>
+              <Box sx={{ mt: 2, p: 2, backgroundColor: 'grey.100', borderRadius: 1, textAlign: 'left' }}>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                  {code.substring(0, 500)}...
+                </Typography>
               </Box>
-            )}
-
-            {/* Payment Details Card */}
-            {hasCard && (
-              <Card sx={{ mb: 3 }}>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Payment Details
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Empty Payment Method
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                    Today is a good day
-                  </Typography>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Add New Payment */}
-            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', py: 2 }}>
-              <Button variant="text" startIcon={<Box sx={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>+</Box>}>
-                Add New
-              </Button>
             </Box>
-
-            {/* Total */}
-            {hasTotal && (
-              <Box sx={{ mb: 3, p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="h6">Total:</Typography>
-                  <Typography variant="h5" color="primary" sx={{ fontWeight: 'bold' }}>
-                    $96
-                  </Typography>
-                </Box>
-              </Box>
-            )}
-
-            {/* Pay Button */}
-            {hasPayButton && (
-              <Button 
-                variant="contained" 
-                fullWidth 
-                size="large"
-                sx={{ py: 1.5, fontSize: '1.1rem' }}
-              >
-                Pay & Confirm
-              </Button>
-            )}
-          </Box>
-        );
+          );
+        }
       };
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown preview error');

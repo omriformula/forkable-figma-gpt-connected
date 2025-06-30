@@ -581,7 +581,7 @@ const VibecodingInterface = () => {
                     Live Preview - {selectedScreen.name}
                   </Typography>
                   {selectedScreen.current_code ? (
-                    <Card sx={{ height: '70vh', overflow: 'hidden' }}>
+                    <Card sx={{ height: '85vh', overflow: 'hidden' }}>
                       <Box sx={{ 
                         height: '100%', 
                         border: '1px solid #e0e0e0',
