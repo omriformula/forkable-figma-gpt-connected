@@ -51,12 +51,16 @@ import {
 } from '@mui/icons-material';
 import { useList, useCreate, useUpdate, useDelete, useGetIdentity } from '@refinedev/core';
 import { supabaseClient } from '../../utility';
-import VibeChatInterface from '../../components/VibeChatInterface';
-import ImageToCodeProcessor from '../../components/ImageToCodeProcessor';
-import FigmaToCodeProcessor from '../../components/FigmaToCodeProcessor';
-import LiveCodePreview from '../../components/LiveCodePreview';
-import APISettings, { APISettings as APISettingsType } from '../../components/APISettings';
-import FigmaAPITest from '../../components/FigmaAPITest';
+import { 
+  FigmaToCodeProcessor, 
+  ImageToCodeProcessor, 
+  VibeChatInterface,
+  LiveCodePreview,
+  APISettings,
+  FigmaAPITest,
+  DebugPipeline
+} from '../../components';
+import { APISettings as APISettingsType } from '../../components/APISettings';
 
 interface Project {
   id: string;
@@ -455,6 +459,7 @@ const VibecodingInterface = () => {
                 {selectedScreen && <Tab label="Vibe Chat" icon={<ChatIcon />} />}
                 {selectedScreen && <Tab label="Live Preview" icon={<PreviewIcon />} />}
                 {selectedScreen && <Tab label="Code Preview" icon={<CodeIcon />} />}
+                {selectedScreen && selectedScreen.analysis_data && <Tab label="🔍 Debug Pipeline" icon={<SettingsIcon />} />}
                 {apiSettings && <Tab label="🔧 Debug API" icon={<SettingsIcon />} />}
               </Tabs>
 
@@ -627,10 +632,15 @@ const VibecodingInterface = () => {
                 </Box>
               )}
 
+              {/* Debug Pipeline Tab */}
+              {currentTab === 4 && selectedScreen && selectedScreen.analysis_data && (
+                <DebugPipeline screen={selectedScreen} />
+              )}
+
               {/* Debug API Tab - Calculate correct index dynamically */}
               {(() => {
                 let debugTabIndex = 1; // Base index after "Screens"
-                if (selectedScreen) debugTabIndex += 3; // Add 3 for Vibe Chat, Live Preview, Code Preview
+                if (selectedScreen) debugTabIndex += 4; // Add 4 for Vibe Chat, Live Preview, Code Preview, Debug Pipeline
                 return currentTab === debugTabIndex && apiSettings && (
                   <Box>
                     <Typography variant="h5" gutterBottom>
