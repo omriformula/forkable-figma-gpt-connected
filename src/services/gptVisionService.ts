@@ -1,4 +1,5 @@
 import { ComponentAnalysis, FigmaFile } from './figmaService';
+import { SemanticGroup, SemanticGroupingResult } from './semanticGroupingService';
 
 export interface GPTVisionAnalysis {
   components: IdentifiedComponent[];
@@ -76,12 +77,12 @@ class GPTVisionService {
   /**
    * Analyze Figma design using both JSON structure and visual image
    */
-  async analyzeFigmaDesign(
+  async analyzeSemanticGroups(
     figmaFile: FigmaFile,
     imageUrl: string,
-    figmaComponents: ComponentAnalysis[]
+    semanticGrouping: SemanticGroupingResult
   ): Promise<GPTVisionAnalysis> {
-    const prompt = this.createAnalysisPrompt(figmaFile, figmaComponents);
+    const prompt = this.createVisualAnalysisPrompt(figmaFile, semanticGrouping);
 
     try {
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -91,7 +92,7 @@ class GPTVisionService {
           'Authorization': `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4-vision-preview',
+          model: 'gpt-4o',
           messages: [
             {
               role: 'system',
@@ -133,112 +134,153 @@ class GPTVisionService {
       }
 
       const data = await response.json();
-      const analysis = JSON.parse(data.choices[0].message.content);
+      const content = data.choices[0].message.content;
       
-      return this.validateAndEnhanceAnalysis(analysis, figmaComponents);
+      // Strip markdown code blocks if present
+      const jsonContent = content.replace(/^```json\s*/g, '').replace(/\s*```$/g, '');
+      console.log('Raw GPT response length:', content.length);
+      console.log('Cleaned JSON length:', jsonContent.length);
+      
+      const analysis = JSON.parse(jsonContent);
+      
+      console.log('🎨 GPT Vision Analysis Results:');
+      console.log('- Components identified:', analysis.components?.length || 0);
+      console.log('- Layout structure:', analysis.layout?.structure || 'unknown');
+      console.log('- Confidence score:', analysis.confidence || 'unknown');
+      console.log('- Raw analysis:', analysis);
+      
+      // For now, return the raw analysis without complex validation
+      // TODO: Implement proper validation later
+      return {
+        components: analysis.components || [],
+        layout: analysis.layout || { structure: 'mixed', responsive: false, breakpoints: ['xs', 'sm', 'md', 'lg'], spacing: { consistent: false, units: [8, 16, 24] } },
+        designSystem: analysis.designSystem || { colors: { primary: '#1976d2', secondary: '#dc004e', background: '#ffffff', text: '#333333' }, typography: { fontFamily: 'Roboto', sizes: [14, 16, 18, 24], weights: [400, 500, 700] }, spacing: { baseUnit: 8, scale: [8, 16, 24, 32] }, borderRadius: [4, 8, 12] },
+        confidence: analysis.confidence || 0.7,
+        suggestions: analysis.suggestions || ['GPT Vision analysis completed']
+      };
     } catch (error) {
       console.error('GPT Vision analysis failed:', error);
       // Fallback to basic analysis
-      return this.createFallbackAnalysis(figmaComponents);
+      return this.createFallbackAnalysis(semanticGrouping);
     }
   }
 
   /**
-   * Create a comprehensive prompt for GPT Vision analysis
+   * Create a visual analysis prompt for GPT Vision working with semantic groups
    */
-  private createAnalysisPrompt(figmaFile: FigmaFile, figmaComponents: ComponentAnalysis[]): string {
+  private createVisualAnalysisPrompt(figmaFile: FigmaFile, semanticGrouping: SemanticGroupingResult): string {
     return `
-Analyze this Figma design and provide a comprehensive component breakdown for React/Material-UI conversion.
+You are analyzing a visual design that has already been pre-processed into semantic component groups. 
+Your task is to validate these groups against the actual visual design and enhance them with Material-UI mapping.
 
-**Design Context:**
-- File Name: ${figmaFile.name}
-- Total Components: ${figmaComponents.length}
+**Pre-Processing Results:**
+- File: ${figmaFile.name}
+- Semantic Groups Identified: ${semanticGrouping.groups.length}
+- Structural Analysis Confidence: ${(semanticGrouping.confidence * 100).toFixed(0)}%
+- Total Nodes Processed: ${semanticGrouping.totalNodes}
 
-**Figma Structure Analysis:**
-${this.formatFigmaComponents(figmaComponents)}
+**Identified Semantic Groups:**
+${this.formatSemanticGroups(semanticGrouping.groups)}
 
-**Analysis Requirements:**
+**Your Visual Validation Tasks:**
 
-1. **Component Identification**: For each visual element, identify:
-   - Component type (button, input, text, etc.)
-   - Interactive behavior
-   - Visual properties (colors, typography, spacing)
-   - Best Material-UI component mapping
+1. **Verify Groups**: Look at the visual design and confirm if the identified groups make sense
+2. **Enhance Properties**: Add visual properties (colors, styles, states) that weren't captured structurally  
+3. **Material-UI Mapping**: Map each validated group to the most appropriate Material-UI component
+4. **Interactive States**: Identify visual states (selected, hover, disabled) for interactive elements
+5. **Missing Elements**: Identify any interactive elements that were missed in structural analysis
 
-2. **Layout Analysis**: Determine:
-   - Overall layout structure (Grid, Flexbox, etc.)
-   - Responsive behavior patterns
-   - Spacing and alignment systems
-
-3. **Design System**: Extract:
-   - Color palette (primary, secondary, background, text)
-   - Typography system (fonts, sizes, weights)
-   - Spacing scale and border radius values
-
-4. **Material-UI Mapping**: For each component, specify:
-   - Exact Material-UI component name
-   - Required props and configuration
-   - Styling approaches (sx prop, theme values)
-
-Please respond with a JSON object matching this structure:
+**Response Format (JSON):**
 {
   "components": [
     {
-      "id": "unique-id",
-      "type": "button|input|text|image|card|header|navigation|form|list|modal|other",
-      "name": "descriptive-name",
-      "description": "component-purpose",
-      "bounds": { "x": 0, "y": 0, "width": 100, "height": 50 },
+      "id": "back-button",
+      "type": "button", 
+      "name": "Back Button",
+      "description": "Navigation button to return to previous screen",
+      "bounds": { "x": 24, "y": 50, "width": 45, "height": 45 },
       "properties": {
-        "text": "button-text",
-        "variant": "contained|outlined|text",
-        "color": "primary|secondary|etc",
-        "interactive": true|false
+        "interactive": true,
+        "hasIcon": true,
+        "variant": "text",
+        "color": "default"
       },
       "materialUIMapping": {
-        "component": "Button",
-        "props": { "variant": "contained", "color": "primary" }
-      },
-      "figmaNodeId": "figma-node-id"
+        "component": "IconButton",
+        "props": { "color": "default" }
+      }
     }
   ],
   "layout": {
-    "structure": "grid|flexbox|absolute|mixed",
-    "responsive": true|false,
-    "breakpoints": ["xs", "sm", "md", "lg"],
-    "spacing": { "consistent": true|false, "units": [8, 16, 24] }
+    "structure": "flexbox",
+    "responsive": true,
+    "spacing": { "consistent": true, "units": [8, 16, 24] }
   },
   "designSystem": {
     "colors": {
-      "primary": "#1976d2",
-      "secondary": "#dc004e",
+      "primary": "#FF7522",
+      "secondary": "#1976d2",
       "background": "#ffffff",
       "text": "#333333"
     },
     "typography": {
-      "fontFamily": "Roboto",
-      "sizes": [12, 14, 16, 18, 24],
-      "weights": [400, 500, 700]
+      "fontFamily": "Sen",
+      "sizes": [14, 16, 17, 30],
+      "weights": [400, 700]
     },
-    "spacing": { "baseUnit": 8, "scale": [8, 16, 24, 32] },
-    "borderRadius": [4, 8, 16]
+    "spacing": { "baseUnit": 8, "scale": [8, 16, 24] },
+    "borderRadius": [8, 10, 12, 20]
   },
   "confidence": 0.85,
-  "suggestions": ["recommendation-1", "recommendation-2"]
+  "suggestions": ["Visual enhancement suggestions"]
 }
+
+Focus on visual validation and enhancement, not re-identification.
 `;
   }
 
   /**
-   * Format Figma components for the prompt
+   * Format semantic groups for the prompt
    */
-  private formatFigmaComponents(components: ComponentAnalysis[]): string {
-    return components
-      .slice(0, 20) // Limit to prevent prompt overflow
-      .map(comp => 
-        `- ${comp.type} "${comp.name}" (${comp.bounds.width}x${comp.bounds.height}) at (${comp.bounds.x}, ${comp.bounds.y})`
+  private formatSemanticGroups(groups: SemanticGroup[]): string {
+    return groups
+      .map(group => 
+        `- ${group.type.toUpperCase()} "${group.name}" (${group.bounds.width}×${group.bounds.height}) at (${group.bounds.x}, ${group.bounds.y}) - ${group.description} [${group.children.length} nodes]`
       )
       .join('\n');
+  }
+
+  /**
+   * Create a basic analysis (public method for temporary use)
+   */
+  async createBasicAnalysis(): Promise<GPTVisionAnalysis> {
+    return {
+      components: [
+        {
+          id: 'main-button',
+          type: 'button',
+          name: 'Main Button',
+          description: 'Primary action button',
+          bounds: { x: 0, y: 0, width: 200, height: 50 },
+          properties: { interactive: true, variant: 'contained' },
+          materialUIMapping: { component: 'Button', props: { variant: 'contained' } }
+        }
+      ],
+      layout: {
+        structure: 'flexbox',
+        responsive: false,
+        breakpoints: ['xs', 'sm', 'md', 'lg'],
+        spacing: { consistent: true, units: [8, 16, 24] }
+      },
+      designSystem: {
+        colors: { primary: '#1976d2', secondary: '#dc004e', background: '#ffffff', text: '#333333' },
+        typography: { fontFamily: 'Roboto', sizes: [14, 16, 18, 24], weights: [400, 500, 700] },
+        spacing: { baseUnit: 8, scale: [8, 16, 24, 32] },
+        borderRadius: [4, 8, 12]
+      },
+      confidence: 0.7,
+      suggestions: ['This is a basic analysis placeholder']
+    };
   }
 
   /**
@@ -246,7 +288,7 @@ Please respond with a JSON object matching this structure:
    */
   private validateAndEnhanceAnalysis(
     analysis: any, 
-    figmaComponents: ComponentAnalysis[]
+    semanticGrouping: SemanticGroupingResult
   ): GPTVisionAnalysis {
     // Ensure all required fields exist
     const enhancedAnalysis: GPTVisionAnalysis = {
@@ -257,89 +299,92 @@ Please respond with a JSON object matching this structure:
         breakpoints: ['xs', 'sm', 'md', 'lg'],
         spacing: { consistent: false, units: [8, 16, 24] }
       },
-      designSystem: analysis.designSystem || this.extractBasicDesignSystem(figmaComponents),
+      designSystem: analysis.designSystem || this.extractBasicDesignSystemFromGroups(semanticGrouping),
       confidence: Math.max(0.1, Math.min(1.0, analysis.confidence || 0.7)),
       suggestions: analysis.suggestions || []
     };
 
-    // Cross-reference with Figma components
-    enhancedAnalysis.components = enhancedAnalysis.components.map(comp => {
-      const figmaMatch = figmaComponents.find(fc => 
-        fc.id === comp.figmaNodeId || 
-        this.isPositionMatch(comp.bounds, fc.bounds)
-      );
-      
-      if (figmaMatch) {
-        comp.figmaNodeId = figmaMatch.id;
-        // Enhance with Figma properties
-        comp.properties = {
-          ...comp.properties,
-          ...this.extractFigmaProperties(figmaMatch)
-        };
-      }
-      
-      return comp;
-    });
+    // Enhance components with validation and semantic group cross-referencing
+    enhancedAnalysis.components = this.enhanceIdentifiedComponentsFromGroups(
+      enhancedAnalysis.components, 
+      semanticGrouping
+    );
+
+    // Add quality validation suggestions
+    enhancedAnalysis.suggestions.push(...this.generateQualityInsights(enhancedAnalysis));
 
     return enhancedAnalysis;
   }
 
   /**
-   * Check if two bounding boxes are approximately the same position
+   * Enhance identified components with semantic group data and validation
    */
-  private isPositionMatch(bounds1: any, bounds2: any): boolean {
-    const threshold = 10; // pixels
-    return Math.abs(bounds1.x - bounds2.x) < threshold &&
-           Math.abs(bounds1.y - bounds2.y) < threshold &&
-           Math.abs(bounds1.width - bounds2.width) < threshold * 2 &&
-           Math.abs(bounds1.height - bounds2.height) < threshold * 2;
+  private enhanceIdentifiedComponentsFromGroups(
+    components: IdentifiedComponent[], 
+    semanticGrouping: SemanticGroupingResult
+  ): IdentifiedComponent[] {
+    return components.map(comp => {
+      // Find matching semantic group
+      const groupMatch = semanticGrouping.groups.find(group => 
+        group.id === comp.id || 
+        this.isPositionMatch(comp.bounds, group.bounds) ||
+        this.isSemanticMatchWithGroup(comp, group)
+      );
+      
+      if (groupMatch) {
+        // Enhance with semantic group properties
+        comp.properties = {
+          ...comp.properties,
+          ...groupMatch.properties,
+          confidence: groupMatch.confidence
+        };
+
+        // Add Figma node references
+        if (groupMatch.children.length > 0) {
+          comp.figmaNodeId = groupMatch.children[0].id;
+        }
+      }
+
+      // Validate component properties
+      comp = this.validateComponentProperties(comp);
+      
+      return comp;
+    });
   }
 
   /**
-   * Extract properties from Figma component
+   * Check if component matches semantic group
    */
-  private extractFigmaProperties(figmaComponent: ComponentAnalysis): Record<string, any> {
-    const props: Record<string, any> = {};
-    
-    if (figmaComponent.properties.fills) {
-      props.backgroundColor = this.extractColor(figmaComponent.properties.fills);
+  private isSemanticMatchWithGroup(component: IdentifiedComponent, group: SemanticGroup): boolean {
+    // Check if the component name relates to the group
+    if (component.name.toLowerCase().includes(group.name.toLowerCase()) ||
+        group.name.toLowerCase().includes(component.name.toLowerCase())) {
+      return true;
     }
     
-    if (figmaComponent.properties.cornerRadius) {
-      props.borderRadius = figmaComponent.properties.cornerRadius;
+    // Check if component type matches
+    if (component.type === group.type) {
+      // Check position proximity (within 50px)
+      const distance = Math.sqrt(
+        Math.pow(component.bounds.x - group.bounds.x, 2) + 
+        Math.pow(component.bounds.y - group.bounds.y, 2)
+      );
+      
+      return distance < 50;
     }
     
-    if (figmaComponent.properties.characters) {
-      props.text = figmaComponent.properties.characters;
-    }
-    
-    return props;
+    return false;
   }
 
   /**
-   * Extract color from Figma fills array
+   * Extract basic design system from semantic groups
    */
-  private extractColor(fills: any[]): string {
-    if (!fills || fills.length === 0) return '#000000';
-    
-    const fill = fills.find(f => f.type === 'SOLID') || fills[0];
-    if (fill && fill.color) {
-      const { r, g, b } = fill.color;
-      return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
-    }
-    
-    return '#000000';
-  }
-
-  /**
-   * Extract basic design system from Figma components
-   */
-  private extractBasicDesignSystem(components: ComponentAnalysis[]): DesignSystemAnalysis {
-    // Analyze components to extract design patterns
-    const colors = this.extractColorPalette(components);
-    const typography = this.extractTypography(components);
-    const spacing = this.extractSpacing(components);
-    const borderRadius = this.extractBorderRadius(components);
+  private extractBasicDesignSystemFromGroups(semanticGrouping: SemanticGroupingResult): DesignSystemAnalysis {
+    // Extract colors from semantic groups
+    const colors = this.extractColorPaletteFromGroups(semanticGrouping.groups);
+    const typography = this.extractTypographyFromGroups(semanticGrouping.groups);
+    const spacing = this.extractSpacingFromGroups(semanticGrouping.groups);
+    const borderRadius = this.extractBorderRadiusFromGroups(semanticGrouping.groups);
 
     return {
       colors: {
@@ -362,33 +407,38 @@ Please respond with a JSON object matching this structure:
     };
   }
 
-  private extractColorPalette(components: ComponentAnalysis[]): string[] {
+  private extractColorPaletteFromGroups(groups: SemanticGroup[]): string[] {
     const colors = new Set<string>();
     
-    components.forEach(comp => {
-      if (comp.properties.fills) {
-        const color = this.extractColor(comp.properties.fills);
-        if (color !== '#000000') {
-          colors.add(color);
+    groups.forEach(group => {
+      // Extract colors from group children
+      group.children.forEach(child => {
+        if (child.properties.fills) {
+          const color = this.extractColor(child.properties.fills);
+          if (color !== '#000000') {
+            colors.add(color);
+          }
         }
-      }
+      });
     });
     
     return Array.from(colors).slice(0, 5);
   }
 
-  private extractTypography(components: ComponentAnalysis[]): { fontFamily: string; sizes: number[]; weights: number[] } {
+  private extractTypographyFromGroups(groups: SemanticGroup[]): { fontFamily: string; sizes: number[]; weights: number[] } {
     const sizes = new Set<number>();
     const weights = new Set<number>();
     let fontFamily = 'Roboto';
 
-    components.forEach(comp => {
-      if (comp.type === 'TEXT' && comp.properties.style) {
-        const style = comp.properties.style;
-        if (style.fontSize) sizes.add(style.fontSize);
-        if (style.fontWeight) weights.add(style.fontWeight);
-        if (style.fontFamily) fontFamily = style.fontFamily;
-      }
+    groups.forEach(group => {
+      group.children.forEach(child => {
+        if (child.type === 'TEXT' && child.properties.style) {
+          const style = child.properties.style;
+          if (style.fontSize) sizes.add(style.fontSize);
+          if (style.fontWeight) weights.add(style.fontWeight);
+          if (style.fontFamily) fontFamily = style.fontFamily;
+        }
+      });
     });
 
     return {
@@ -398,11 +448,11 @@ Please respond with a JSON object matching this structure:
     };
   }
 
-  private extractSpacing(components: ComponentAnalysis[]): { baseUnit: number; scale: number[] } {
+  private extractSpacingFromGroups(groups: SemanticGroup[]): { baseUnit: number; scale: number[] } {
     const spacings = new Set<number>();
     
-    components.forEach(comp => {
-      Object.values(comp.properties).forEach(value => {
+    groups.forEach(group => {
+      Object.values(group.bounds).forEach(value => {
         if (typeof value === 'number' && value > 0 && value < 100) {
           spacings.add(value);
         }
@@ -418,13 +468,15 @@ Please respond with a JSON object matching this structure:
     };
   }
 
-  private extractBorderRadius(components: ComponentAnalysis[]): number[] {
+  private extractBorderRadiusFromGroups(groups: SemanticGroup[]): number[] {
     const radii = new Set<number>();
     
-    components.forEach(comp => {
-      if (comp.properties.cornerRadius) {
-        radii.add(comp.properties.cornerRadius);
-      }
+    groups.forEach(group => {
+      group.children.forEach(child => {
+        if (child.properties.cornerRadius) {
+          radii.add(child.properties.cornerRadius);
+        }
+      });
     });
     
     return Array.from(radii).sort((a, b) => a - b) || [4, 8, 16];
@@ -433,19 +485,19 @@ Please respond with a JSON object matching this structure:
   /**
    * Create fallback analysis when GPT Vision fails
    */
-  private createFallbackAnalysis(figmaComponents: ComponentAnalysis[]): GPTVisionAnalysis {
-    const components: IdentifiedComponent[] = figmaComponents.map(comp => ({
-      id: comp.id,
-      type: this.mapFigmaTypeToComponent(comp.type),
-      name: comp.name,
-      description: `${comp.type} component`,
-      bounds: comp.bounds,
+  private createFallbackAnalysis(semanticGrouping: SemanticGroupingResult): GPTVisionAnalysis {
+    const components: IdentifiedComponent[] = semanticGrouping.groups.map(group => ({
+      id: group.id,
+      type: group.type,
+      name: group.name,
+      description: group.description,
+      bounds: group.bounds,
       properties: {
-        interactive: ['BUTTON', 'TEXT', 'INPUT'].includes(comp.type.toUpperCase()),
-        ...comp.properties
+        interactive: group.properties.interactive || false,
+        ...group.properties
       },
-      materialUIMapping: this.getFallbackMaterialUIMapping(comp.type),
-      figmaNodeId: comp.id
+      materialUIMapping: this.getFallbackMaterialUIMappingForGroup(group.type),
+      figmaNodeId: group.children[0]?.id
     }));
 
     return {
@@ -456,35 +508,82 @@ Please respond with a JSON object matching this structure:
         breakpoints: ['xs', 'sm', 'md', 'lg'],
         spacing: { consistent: false, units: [8, 16, 24] }
       },
-      designSystem: this.extractBasicDesignSystem(figmaComponents),
-      confidence: 0.6,
-      suggestions: ['Consider using GPT Vision for more accurate analysis']
+      designSystem: this.extractBasicDesignSystemFromGroups(semanticGrouping),
+      confidence: Math.max(0.6, semanticGrouping.confidence),
+      suggestions: ['Consider using GPT Vision for more accurate visual analysis']
     };
   }
 
-  private mapFigmaTypeToComponent(figmaType: string): IdentifiedComponent['type'] {
-    const typeMap: Record<string, IdentifiedComponent['type']> = {
-      'RECTANGLE': 'card',
-      'TEXT': 'text',
-      'FRAME': 'other',
-      'GROUP': 'other',
-      'COMPONENT': 'other',
-      'INSTANCE': 'other',
-      'ELLIPSE': 'other'
-    };
-    
-    return typeMap[figmaType] || 'other';
-  }
-
-  private getFallbackMaterialUIMapping(figmaType: string): IdentifiedComponent['materialUIMapping'] {
+  private getFallbackMaterialUIMappingForGroup(groupType: string): IdentifiedComponent['materialUIMapping'] {
     const mappings: Record<string, IdentifiedComponent['materialUIMapping']> = {
-      'TEXT': { component: 'Typography', props: { variant: 'body1' } },
-      'RECTANGLE': { component: 'Card', props: {} },
-      'FRAME': { component: 'Box', props: {} },
-      'GROUP': { component: 'Box', props: {} },
+      'button': { component: 'Button', props: { variant: 'contained' } },
+      'text': { component: 'Typography', props: { variant: 'body1' } },
+      'card': { component: 'Card', props: {} },
+      'navigation': { component: 'AppBar', props: {} },
+      'input': { component: 'TextField', props: {} },
+      'list': { component: 'List', props: {} },
+      'image': { component: 'Avatar', props: {} },
+      'container': { component: 'Box', props: {} },
     };
     
-    return mappings[figmaType] || { component: 'Box', props: {} };
+    return mappings[groupType] || { component: 'Box', props: {} };
+  }
+
+  /**
+   * Simple test method to verify GPT Vision API works
+   */
+  async testGPTVisionAPI(): Promise<any> {
+    console.log('Testing GPT Vision API with simple request...');
+    
+    try {
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: 'What do you see in this image? Please describe it briefly.'
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg',
+                    detail: 'low'
+                  }
+                }
+              ]
+            }
+          ],
+          max_tokens: 300,
+          temperature: 0.1
+        })
+      });
+
+      console.log('GPT Vision API Response status:', response.status);
+      console.log('GPT Vision API Response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('GPT Vision API error response:', errorText);
+        throw new Error(`GPT Vision API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('GPT Vision API success:', data);
+      return data;
+      
+    } catch (error) {
+      console.error('GPT Vision test failed:', error);
+      throw error;
+    }
   }
 }
 

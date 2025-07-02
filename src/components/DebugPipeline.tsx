@@ -29,7 +29,9 @@ import {
   Psychology as AIIcon,
   ViewModule as ComponentIcon,
   Code as CodeIcon,
-  CheckCircle as CompleteIcon
+  CheckCircle as CompleteIcon,
+  GroupWork as GroupIcon,
+  Visibility as VisualIcon
 } from '@mui/icons-material';
 
 interface Screen {
@@ -37,6 +39,7 @@ interface Screen {
   name: string;
   analysis_data?: {
     figmaData: any;
+    semanticGrouping: any;
     gptAnalysis: any;
   };
   current_code?: string;
@@ -53,6 +56,7 @@ const DebugPipeline: React.FC<DebugPipelineProps> = ({ screen }) => {
   
   const { analysis_data } = screen;
   const figmaData = analysis_data?.figmaData;
+  const semanticGrouping = analysis_data?.semanticGrouping;
   const gptAnalysis = analysis_data?.gptAnalysis;
 
   const steps = [
@@ -67,14 +71,19 @@ const DebugPipeline: React.FC<DebugPipelineProps> = ({ screen }) => {
       description: 'Generated image exports from Figma'
     },
     { 
-      label: 'GPT Analysis',
-      icon: <AIIcon />,
-      description: 'GPT Vision analysis and component identification'
+      label: 'Stage 3A: Semantic Grouping',
+      icon: <GroupIcon />,
+      description: 'GPT-3.5 analysis of JSON structure for semantic grouping'
+    },
+    { 
+      label: 'Stage 3B: Visual Validation',
+      icon: <VisualIcon />,
+      description: 'GPT Vision analysis with image and semantic groups'
     },
     { 
       label: 'Components',
       icon: <ComponentIcon />,
-      description: 'Identified UI components with Material-UI mappings'
+      description: 'Final identified UI components with Material-UI mappings'
     },
     { 
       label: 'Generated Code',
@@ -196,30 +205,38 @@ const DebugPipeline: React.FC<DebugPipelineProps> = ({ screen }) => {
         </Box>
       )}
 
-      {/* Step 3: GPT Analysis */}
+      {/* Step 3A: Semantic Grouping */}
       {currentStep === 2 && (
         <Box>
           <Typography variant="h6" gutterBottom>
-            Step 3: GPT Vision Analysis
+            Stage 3A: Semantic Grouping Analysis
           </Typography>
           <Typography variant="body2" color="text.secondary" paragraph>
-            Analysis results from GPT-4 Vision API
+            GPT-3.5 Turbo analysis of Figma JSON structure to identify logical UI component groups
           </Typography>
           
-          {gptAnalysis ? (
+          {semanticGrouping ? (
             <Box>
               <Card sx={{ mb: 2 }}>
                 <CardContent>
-                  <Typography variant="h6" gutterBottom>Analysis Summary</Typography>
+                  <Typography variant="h6" gutterBottom>Semantic Grouping Summary</Typography>
                   <Grid container spacing={2}>
-                    <Grid item xs={6}>
+                    <Grid item xs={4}>
                       <Chip 
-                        label={`Confidence: ${(gptAnalysis.confidence * 100).toFixed(0)}%`}
-                        color={gptAnalysis.confidence > 0.8 ? 'success' : 'warning'}
+                        label={`Confidence: ${(semanticGrouping.confidence * 100).toFixed(0)}%`}
+                        color={semanticGrouping.confidence > 0.8 ? 'success' : 'warning'}
                       />
                     </Grid>
-                    <Grid item xs={6}>
-                      <Chip label={`Components: ${gptAnalysis.components?.length || 0}`} />
+                    <Grid item xs={4}>
+                      <Chip label={`Groups: ${semanticGrouping.groups?.length || 0}`} />
+                    </Grid>
+                    <Grid item xs={4}>
+                      <Chip label={`Processing: ${semanticGrouping.processingTime}ms`} />
+                    </Grid>
+                    <Grid item xs={12} sx={{ mt: 1 }}>
+                      <Typography variant="body2">
+                        <strong>Grouped:</strong> {semanticGrouping.groupedNodes} / {semanticGrouping.totalNodes} nodes
+                      </Typography>
                     </Grid>
                   </Grid>
                 </CardContent>
@@ -227,7 +244,130 @@ const DebugPipeline: React.FC<DebugPipelineProps> = ({ screen }) => {
 
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography variant="h6">Identified Components ({gptAnalysis.components?.length || 0})</Typography>
+                  <Typography variant="h6">Semantic Groups ({semanticGrouping.groups?.length || 0})</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <TableContainer component={Paper}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Group Name</TableCell>
+                          <TableCell>Type</TableCell>
+                          <TableCell>Children</TableCell>
+                          <TableCell>Confidence</TableCell>
+                          <TableCell>Properties</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {semanticGrouping.groups?.map((group: any, index: number) => (
+                          <TableRow key={index}>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                                {group.name}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {group.description}
+                              </Typography>
+                            </TableCell>
+                            <TableCell><Chip size="small" label={group.type} /></TableCell>
+                            <TableCell>
+                              <Typography variant="caption">
+                                {group.children?.length || 0} nodes
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="caption">
+                                {(group.confidence * 100).toFixed(0)}%
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="caption">
+                                {group.properties?.interactive ? '🔘 Interactive' : '📄 Static'}
+                                {group.properties?.text && ` | "${group.properties.text}"`}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </AccordionDetails>
+              </Accordion>
+
+              <Accordion>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Typography variant="h6">Ungrouped Nodes ({semanticGrouping.ungroupedNodes?.length || 0})</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Paper sx={{ p: 2, backgroundColor: 'grey.50', maxHeight: 300, overflow: 'auto' }}>
+                    {semanticGrouping.ungroupedNodes?.map((node: any, index: number) => (
+                      <Typography key={index} variant="caption" sx={{ display: 'block', mb: 0.5 }}>
+                        {node.type} "{node.name}" ({node.bounds?.width}×{node.bounds?.height})
+                      </Typography>
+                    ))}
+                  </Paper>
+                </AccordionDetails>
+              </Accordion>
+
+              <Accordion>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Typography variant="h6">Raw Semantic Grouping Response</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Paper sx={{ p: 2, backgroundColor: 'grey.50', maxHeight: 400, overflow: 'auto' }}>
+                    <pre style={{ fontSize: '0.8rem', margin: 0 }}>
+                      {JSON.stringify(semanticGrouping, null, 2)}
+                    </pre>
+                  </Paper>
+                </AccordionDetails>
+              </Accordion>
+            </Box>
+          ) : (
+            <Alert severity="warning">No semantic grouping data available</Alert>
+          )}
+        </Box>
+      )}
+
+      {/* Step 3B: Visual Validation */}
+      {currentStep === 3 && (
+        <Box>
+          <Typography variant="h6" gutterBottom>
+            Stage 3B: Visual Validation Analysis
+          </Typography>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            GPT Vision analysis using both the image and pre-processed semantic groups
+          </Typography>
+          
+          {gptAnalysis ? (
+            <Box>
+              <Card sx={{ mb: 2 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>Visual Validation Summary</Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={4}>
+                      <Chip 
+                        label={`Confidence: ${(gptAnalysis.confidence * 100).toFixed(0)}%`}
+                        color={gptAnalysis.confidence > 0.8 ? 'success' : 'warning'}
+                      />
+                    </Grid>
+                    <Grid item xs={4}>
+                      <Chip label={`Components: ${gptAnalysis.components?.length || 0}`} />
+                    </Grid>
+                    <Grid item xs={4}>
+                      <Chip label={`Layout: ${gptAnalysis.layout?.structure}`} />
+                    </Grid>
+                    <Grid item xs={12} sx={{ mt: 1 }}>
+                      <Typography variant="body2">
+                        <strong>Stage 3B Enhancement:</strong> Visual validation {gptAnalysis.components?.length > (semanticGrouping?.groups?.length || 0) ? 'refined and expanded' : 'validated'} the semantic groups
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+
+              <Accordion>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Typography variant="h6">Visual Validation Results ({gptAnalysis.components?.length || 0})</Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <TableContainer component={Paper}>
@@ -261,7 +401,7 @@ const DebugPipeline: React.FC<DebugPipelineProps> = ({ screen }) => {
 
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography variant="h6">Design System</Typography>
+                  <Typography variant="h6">Design System Analysis</Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <Grid container spacing={2}>
@@ -296,7 +436,7 @@ const DebugPipeline: React.FC<DebugPipelineProps> = ({ screen }) => {
 
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography variant="h6">Raw GPT Response</Typography>
+                  <Typography variant="h6">Raw GPT Vision Response</Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <Paper sx={{ p: 2, backgroundColor: 'grey.50', maxHeight: 400, overflow: 'auto' }}>
@@ -308,13 +448,13 @@ const DebugPipeline: React.FC<DebugPipelineProps> = ({ screen }) => {
               </Accordion>
             </Box>
           ) : (
-            <Alert severity="warning">No GPT analysis data available</Alert>
+            <Alert severity="warning">No GPT Vision analysis data available</Alert>
           )}
         </Box>
       )}
 
       {/* Step 4: Components */}
-      {currentStep === 3 && (
+      {currentStep === 4 && (
         <Box>
           <Typography variant="h6" gutterBottom>
             Step 4: Component Identification
@@ -380,7 +520,7 @@ const DebugPipeline: React.FC<DebugPipelineProps> = ({ screen }) => {
       )}
 
       {/* Step 5: Generated Code */}
-      {currentStep === 4 && (
+      {currentStep === 5 && (
         <Box>
           <Typography variant="h6" gutterBottom>
             Step 5: React Code Generation
@@ -407,7 +547,7 @@ const DebugPipeline: React.FC<DebugPipelineProps> = ({ screen }) => {
       )}
 
       {/* Step 6: Final Result */}
-      {currentStep === 5 && (
+      {currentStep === 6 && (
         <Box>
           <Typography variant="h6" gutterBottom>
             Step 6: Final Result

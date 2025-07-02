@@ -58,7 +58,8 @@ import {
   LiveCodePreview,
   APISettings,
   FigmaAPITest,
-  DebugPipeline
+  DebugPipeline,
+  StageDebugger
 } from '../../components';
 import { APISettings as APISettingsType } from '../../components/APISettings';
 
@@ -461,6 +462,7 @@ const VibecodingInterface = () => {
                 {selectedScreen && <Tab label="Code Preview" icon={<CodeIcon />} />}
                 {selectedScreen && selectedScreen.analysis_data && <Tab label="🔍 Debug Pipeline" icon={<SettingsIcon />} />}
                 {apiSettings && <Tab label="🔧 Debug API" icon={<SettingsIcon />} />}
+                {apiSettings && <Tab label="🧪 Stage Debugger" icon={<SettingsIcon />} />}
               </Tabs>
 
               {currentTab === 0 && (
@@ -483,10 +485,10 @@ const VibecodingInterface = () => {
                                 openaiApiKey={apiSettings.openaiApiKey}
                               />
                             ) : (
-                              <ImageToCodeProcessor 
-                                screen={screen}
-                                onComplete={refetchScreens}
-                              />
+                            <ImageToCodeProcessor 
+                              screen={screen}
+                              onComplete={refetchScreens}
+                            />
                             )}
                           </Box>
                         ))}
@@ -586,7 +588,7 @@ const VibecodingInterface = () => {
                     Live Preview - {selectedScreen.name}
                   </Typography>
                   {selectedScreen.current_code ? (
-                    <Card sx={{ height: '85vh', overflow: 'hidden' }}>
+                    <Card sx={{ height: '95vh', overflow: 'hidden' }}>
                       <Box sx={{ 
                         height: '100%', 
                         border: '1px solid #e0e0e0',
@@ -637,10 +639,30 @@ const VibecodingInterface = () => {
                 <DebugPipeline screen={selectedScreen} />
               )}
 
+              {/* Stage Debugger Tab */}
+              {(() => {
+                let stageDebuggerTabIndex = 1; // Base index after "Screens"
+                if (selectedScreen) stageDebuggerTabIndex += 5; // Add 5 for Vibe Chat, Live Preview, Code Preview, Debug Pipeline, Debug API
+                return currentTab === stageDebuggerTabIndex && apiSettings && (
+                  <Box>
+                    <Typography variant="h5" gutterBottom>
+                      🧪 Stage Debugger - Test 3A & 3B Independently
+                    </Typography>
+                    <Alert severity="info" sx={{ mb: 3 }}>
+                      Debug and test Stage 3A (Semantic Grouping) and Stage 3B (Visual Validation) independently.
+                    </Alert>
+                    <StageDebugger 
+                      figmaToken={apiSettings.figmaToken} 
+                      openaiApiKey={apiSettings.openaiApiKey} 
+                    />
+                  </Box>
+                );
+              })()}
+
               {/* Debug API Tab - Calculate correct index dynamically */}
               {(() => {
                 let debugTabIndex = 1; // Base index after "Screens"
-                if (selectedScreen) debugTabIndex += 4; // Add 4 for Vibe Chat, Live Preview, Code Preview, Debug Pipeline
+                if (selectedScreen) debugTabIndex += 5; // Add 5 for Vibe Chat, Live Preview, Code Preview, Debug Pipeline, Stage Debugger
                 return currentTab === debugTabIndex && apiSettings && (
                   <Box>
                     <Typography variant="h5" gutterBottom>
@@ -746,28 +768,28 @@ const VibecodingInterface = () => {
             </Box>
           ) : (
             <Box>
-              <Button
-                component="label"
-                variant="outlined"
-                startIcon={<UploadIcon />}
-                fullWidth
-                sx={{ mb: 2, p: 2 }}
-              >
-                {uploadFile ? uploadFile.name : 'Choose Image File'}
-                <input
-                  type="file"
-                  hidden
-                  accept="image/*"
-                  onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                />
-              </Button>
-              {uploadFile && (
-                <Box sx={{ mt: 2 }}>
-                  <img
-                    src={URL.createObjectURL(uploadFile)}
-                    alt="Preview"
-                    style={{ width: '100%', maxHeight: '200px', objectFit: 'contain' }}
-                  />
+          <Button
+            component="label"
+            variant="outlined"
+            startIcon={<UploadIcon />}
+            fullWidth
+            sx={{ mb: 2, p: 2 }}
+          >
+            {uploadFile ? uploadFile.name : 'Choose Image File'}
+            <input
+              type="file"
+              hidden
+              accept="image/*"
+              onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+            />
+          </Button>
+          {uploadFile && (
+            <Box sx={{ mt: 2 }}>
+              <img
+                src={URL.createObjectURL(uploadFile)}
+                alt="Preview"
+                style={{ width: '100%', maxHeight: '200px', objectFit: 'contain' }}
+              />
                 </Box>
               )}
             </Box>
